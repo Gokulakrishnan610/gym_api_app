@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gym Access Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg-primary:#0a0e1a;--bg-secondary:#111827;--bg-card:rgba(17,24,39,.7);
+  --bg-card-hover:rgba(31,41,55,.8);--bg-glass:rgba(255,255,255,.04);
+  --border:rgba(255,255,255,.06);--border-hover:rgba(255,255,255,.12);
+  --text-primary:#f1f5f9;--text-secondary:#94a3b8;--text-muted:#64748b;
+  --accent:#818cf8;--accent-glow:rgba(129,140,248,.15);
+  --green:#34d399;--green-bg:rgba(52,211,153,.12);
+  --red:#f87171;--red-bg:rgba(248,113,113,.12);
+  --orange:#fbbf24;--orange-bg:rgba(251,191,36,.12);
+  --blue:#60a5fa;--blue-bg:rgba(96,165,250,.12);
+  --radius:12px;--radius-sm:8px;--radius-xs:6px;
+  --shadow:0 4px 24px rgba(0,0,0,.3);
+  --transition:all .2s cubic-bezier(.4,0,.2,1);
+}
+html{font-size:14px}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg-primary);color:var(--text-primary);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at 30% 20%,rgba(129,140,248,.06) 0%,transparent 50%),radial-gradient(ellipse at 70% 80%,rgba(52,211,153,.04) 0%,transparent 50%);z-index:0;pointer-events:none}
+
+/* ── Layout ───────────────────────────────────────────────────── */
+.app{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:20px 24px 40px}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px}
+header h1{font-size:1.6rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-.02em}
+.header-right{display:flex;align-items:center;gap:16px}
+.live-clock{font-size:.85rem;color:var(--text-muted);font-variant-numeric:tabular-nums;font-weight:500}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-right:6px;animation:pulse-dot 2s infinite}
+@keyframes pulse-dot{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(52,211,153,.4)}50%{opacity:.7;box-shadow:0 0 0 6px rgba(52,211,153,0)}}
+
+/* ── Stats cards ──────────────────────────────────────────────── */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:28px}
+.stat-card{background:var(--bg-card);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:var(--radius);padding:20px;transition:var(--transition);position:relative;overflow:hidden}
+.stat-card:hover{border-color:var(--border-hover);transform:translateY(-2px);box-shadow:var(--shadow)}
+.stat-card .stat-icon{width:40px;height:40px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:1.2rem;margin-bottom:12px}
+.stat-card .stat-value{font-size:2rem;font-weight:800;letter-spacing:-.02em;line-height:1}
+.stat-card .stat-label{font-size:.8rem;color:var(--text-muted);margin-top:4px;font-weight:500;text-transform:uppercase;letter-spacing:.05em}
+.stat-card.total .stat-icon{background:var(--accent-glow);color:var(--accent)}
+.stat-card.paid .stat-icon{background:var(--green-bg);color:var(--green)}
+.stat-card.unpaid .stat-icon{background:var(--red-bg);color:var(--red)}
+.stat-card.inside .stat-icon{background:var(--blue-bg);color:var(--blue)}
+
+/* ── Tabs ─────────────────────────────────────────────────────── */
+.tabs{display:flex;gap:4px;margin-bottom:20px;background:var(--bg-card);border-radius:var(--radius);padding:4px;border:1px solid var(--border);width:fit-content}
+.tab-btn{padding:8px 20px;border:none;background:transparent;color:var(--text-muted);font-family:inherit;font-size:.85rem;font-weight:600;border-radius:var(--radius-sm);cursor:pointer;transition:var(--transition)}
+.tab-btn:hover{color:var(--text-secondary)}
+.tab-btn.active{background:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(129,140,248,.3)}
+.tab-panel{display:none;animation:fadeIn .3s ease}
+.tab-panel.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── Toolbar ──────────────────────────────────────────────────── */
+.toolbar{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.search-box{flex:1;min-width:200px;position:relative}
+.search-box input{width:100%;padding:10px 14px 10px 38px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:inherit;font-size:.85rem;transition:var(--transition);outline:none}
+.search-box input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.search-box input::placeholder{color:var(--text-muted)}
+.search-box::before{content:'🔍';position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:.85rem;opacity:.5}
+select.filter-select{padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:inherit;font-size:.85rem;cursor:pointer;outline:none;transition:var(--transition)}
+select.filter-select:focus{border-color:var(--accent)}
+.btn{padding:10px 20px;border:none;border-radius:var(--radius-sm);font-family:inherit;font-size:.85rem;font-weight:600;cursor:pointer;transition:var(--transition);display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:linear-gradient(135deg,var(--accent),#6366f1);color:#fff;box-shadow:0 2px 12px rgba(129,140,248,.25)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(129,140,248,.35)}
+.btn-danger{background:var(--red-bg);color:var(--red);border:1px solid rgba(248,113,113,.2)}
+.btn-danger:hover{background:rgba(248,113,113,.2)}
+.btn-success{background:var(--green-bg);color:var(--green);border:1px solid rgba(52,211,153,.2)}
+.btn-success:hover{background:rgba(52,211,153,.2)}
+.btn-sm{padding:6px 12px;font-size:.78rem}
+.btn-ghost{background:transparent;color:var(--text-muted);padding:6px 10px}
+.btn-ghost:hover{color:var(--text-primary);background:var(--bg-glass)}
+
+/* ── Table ────────────────────────────────────────────────────── */
+.table-wrap{background:var(--bg-card);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+table{width:100%;border-collapse:collapse}
+thead{background:rgba(255,255,255,.02)}
+th{padding:12px 16px;text-align:left;font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border)}
+td{padding:12px 16px;font-size:.85rem;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.empty-state{text-align:center;padding:60px 20px;color:var(--text-muted)}
+.empty-state .empty-icon{font-size:2.5rem;margin-bottom:12px;opacity:.5}
+.empty-state p{font-size:.9rem}
+
+/* ── Badge ────────────────────────────────────────────────────── */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:.75rem;font-weight:600;letter-spacing:.02em}
+.badge-paid{background:var(--green-bg);color:var(--green)}
+.badge-unpaid{background:var(--red-bg);color:var(--red)}
+.badge-expired{background:var(--orange-bg);color:var(--orange)}
+.badge-allowed{background:var(--green-bg);color:var(--green)}
+.badge-denied{background:var(--red-bg);color:var(--red)}
+.badge-entry{background:var(--blue-bg);color:var(--blue)}
+.badge-exit{background:var(--orange-bg);color:var(--orange)}
+.badge-access-on{background:var(--green-bg);color:var(--green)}
+.badge-access-off{background:var(--red-bg);color:var(--red)}
+
+/* ── Modal ────────────────────────────────────────────────────── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:28px;width:100%;max-width:480px;box-shadow:0 24px 48px rgba(0,0,0,.4);animation:modalIn .25s ease}
+@keyframes modalIn{from{opacity:0;transform:scale(.95) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.modal h2{font-size:1.15rem;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:8px}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em}
+.form-group input,.form-group select{width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:inherit;font-size:.85rem;outline:none;transition:var(--transition)}
+.form-group input:focus,.form-group select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:24px}
+
+/* ── Toast ────────────────────────────────────────────────────── */
+.toast-container{position:fixed;top:20px;right:20px;z-index:200;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 20px;border-radius:var(--radius-sm);font-size:.85rem;font-weight:500;animation:toastIn .3s ease,toastOut .3s ease 2.7s forwards;backdrop-filter:blur(12px);border:1px solid var(--border);max-width:360px}
+.toast-success{background:rgba(52,211,153,.15);color:var(--green);border-color:rgba(52,211,153,.2)}
+.toast-error{background:rgba(248,113,113,.15);color:var(--red);border-color:rgba(248,113,113,.2)}
+.toast-info{background:rgba(96,165,250,.15);color:var(--blue);border-color:rgba(96,165,250,.2)}
+@keyframes toastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+@keyframes toastOut{to{opacity:0;transform:translateX(40px)}}
+
+/* ── Live event row flash ──────────────────────────────────────── */
+.row-new{animation:rowFlash .6s ease}
+@keyframes rowFlash{from{background:var(--accent-glow)}to{background:transparent}}
+
+/* ── Responsive ───────────────────────────────────────────────── */
+@media(max-width:768px){
+  .app{padding:12px 12px 32px}
+  header h1{font-size:1.3rem}
+  .stats-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .stat-card{padding:14px}
+  .stat-card .stat-value{font-size:1.5rem}
+  .table-wrap{overflow-x:auto}
+  .toolbar{flex-direction:column}
+  .search-box{min-width:100%}
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.2)}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Header -->
+  <header>
+    <h1>⚡ Gym Access Control</h1>
+    <div class="header-right">
+      <span class="live-clock"><span class="live-dot"></span><span id="clock"></span></span>
+    </div>
+  </header>
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card total">
+      <div class="stat-icon">👥</div>
+      <div class="stat-value" id="stat-total">0</div>
+      <div class="stat-label">Total Students</div>
+    </div>
+    <div class="stat-card paid">
+      <div class="stat-icon">✅</div>
+      <div class="stat-value" id="stat-paid">0</div>
+      <div class="stat-label">Paid</div>
+    </div>
+    <div class="stat-card unpaid">
+      <div class="stat-icon">⛔</div>
+      <div class="stat-value" id="stat-unpaid">0</div>
+      <div class="stat-label">Unpaid / Expired</div>
+    </div>
+    <div class="stat-card inside">
+      <div class="stat-icon">🏠</div>
+      <div class="stat-value" id="stat-inside">0</div>
+      <div class="stat-label">Currently In Gym</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="students">Students</button>
+    <button class="tab-btn" data-tab="logs">Access Log</button>
+    <button class="tab-btn" data-tab="active">Active Now</button>
+  </div>
+
+  <!-- ═══ Students Tab ═══ -->
+  <div id="tab-students" class="tab-panel active">
+    <div class="toolbar">
+      <div class="search-box"><input type="text" id="student-search" placeholder="Search by name, roll no, batch..."></div>
+      <select class="filter-select" id="student-filter">
+        <option value="">All Status</option>
+        <option value="paid">Paid</option>
+        <option value="unpaid">Unpaid</option>
+        <option value="expired">Expired</option>
+      </select>
+      <button class="btn btn-primary" onclick="openAddStudentModal()">+ Add Student</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Roll No</th><th>Name</th><th>Batch</th><th>Phone</th>
+          <th>Payment</th><th>Valid Until</th><th>Access</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="students-tbody"></tbody>
+      </table>
+      <div class="empty-state" id="students-empty" style="display:none">
+        <div class="empty-icon">📋</div>
+        <p>No students found. Add one to get started.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Access Log Tab ═══ -->
+  <div id="tab-logs" class="tab-panel">
+    <div class="toolbar">
+      <div class="search-box"><input type="text" id="log-search" placeholder="Filter by roll number..."></div>
+      <select class="filter-select" id="log-event-filter">
+        <option value="">All Events</option>
+        <option value="entry">Entry</option>
+        <option value="exit">Exit</option>
+      </select>
+      <select class="filter-select" id="log-status-filter">
+        <option value="">All Status</option>
+        <option value="allowed">Allowed</option>
+        <option value="denied">Denied</option>
+      </select>
+      <button class="btn btn-primary" onclick="openLogEventModal()">📡 Log Entry / Exit</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Time</th><th>Roll No</th><th>Name</th>
+          <th>Event</th><th>Status</th><th>Notes</th>
+        </tr></thead>
+        <tbody id="logs-tbody"></tbody>
+      </table>
+      <div class="empty-state" id="logs-empty" style="display:none">
+        <div class="empty-icon">📭</div>
+        <p>No access events logged yet.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Active Now Tab ═══ -->
+  <div id="tab-active" class="tab-panel">
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Roll No</th><th>Name</th><th>Entered At</th>
+        </tr></thead>
+        <tbody id="active-tbody"></tbody>
+      </table>
+      <div class="empty-state" id="active-empty" style="display:none">
+        <div class="empty-icon">🏠</div>
+        <p>No one is currently in the gym.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Add Student Modal ═══ -->
+<div class="modal-overlay" id="modal-add-student">
+  <div class="modal">
+    <h2>👤 Add Student</h2>
+    <div class="form-group">
+      <label>Roll Number</label>
+      <input type="text" id="add-roll" placeholder="e.g. CS2023001">
+    </div>
+    <div class="form-group">
+      <label>Full Name</label>
+      <input type="text" id="add-name" placeholder="e.g. Rohith Kumar">
+    </div>
+    <div class="form-group">
+      <label>Batch / Section</label>
+      <input type="text" id="add-room" placeholder="e.g. CSE-A, 2024">
+    </div>
+    <div class="form-group">
+      <label>Phone (optional)</label>
+      <input type="text" id="add-phone" placeholder="e.g. 9876543210">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-add-student')">Cancel</button>
+      <button class="btn btn-primary" onclick="addStudent()">Add Student</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Payment Modal ═══ -->
+<div class="modal-overlay" id="modal-payment">
+  <div class="modal">
+    <h2>💳 Update Payment</h2>
+    <input type="hidden" id="pay-roll">
+    <div class="form-group">
+      <label>Payment Status</label>
+      <select id="pay-status">
+        <option value="paid">Paid</option>
+        <option value="unpaid">Unpaid</option>
+        <option value="expired">Expired</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Valid From</label>
+      <input type="date" id="pay-from">
+    </div>
+    <div class="form-group">
+      <label>Valid Until</label>
+      <input type="date" id="pay-until">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-payment')">Cancel</button>
+      <button class="btn btn-primary" onclick="updatePayment()">Update</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Log Event Modal ═══ -->
+<div class="modal-overlay" id="modal-log-event">
+  <div class="modal">
+    <h2>📡 Log Entry / Exit</h2>
+    <div class="form-group">
+      <label>Roll Number</label>
+      <input type="text" id="log-roll" placeholder="e.g. CS2023001">
+    </div>
+    <div class="form-group">
+      <label>Event Type</label>
+      <select id="log-type">
+        <option value="entry">🚪 Entry</option>
+        <option value="exit">🚶 Exit</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Notes (optional)</label>
+      <input type="text" id="log-notes" placeholder="e.g. manual check-in">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-log-event')">Cancel</button>
+      <button class="btn btn-primary" onclick="logEvent()">Log Event</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Edit Student Modal ═══ -->
+<div class="modal-overlay" id="modal-edit-student">
+  <div class="modal">
+    <h2>✏️ Edit Student</h2>
+    <input type="hidden" id="edit-roll-original">
+    <div class="form-group">
+      <label>Full Name</label>
+      <input type="text" id="edit-name">
+    </div>
+    <div class="form-group">
+      <label>Batch / Section</label>
+      <input type="text" id="edit-room">
+    </div>
+    <div class="form-group">
+      <label>Phone</label>
+      <input type="text" id="edit-phone">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-edit-student')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditStudent()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toasts"></div>
+
+<script>
+const API = '';
+
+// ── Utils ────────────────────────────────────────────────────────
+function toast(msg, type='success') {
+  const c = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+function formatTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString('en-IN', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true});
+}
+
+function formatDate(ds) {
+  if (!ds) return '—';
+  const d = new Date(ds + 'T00:00:00');
+  return d.toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'});
+}
+
+// ── Clock ────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── Tabs ─────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'logs') loadLogs();
+    if (btn.dataset.tab === 'active') loadActive();
+  });
+});
+
+// ── Modal helpers ────────────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+document.querySelectorAll('.modal-overlay').forEach(ov => {
+  ov.addEventListener('click', e => { if (e.target === ov) ov.classList.remove('show'); });
+});
+
+// ── API helpers ──────────────────────────────────────────────────
+async function api(path, opts={}) {
+  const res = await fetch(API + path, {
+    headers: {'Content-Type':'application/json'},
+    ...opts,
+  });
+  if (res.status === 204) return null;
+  if (!res.ok) {
+    const err = await res.json().catch(()=>({}));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  STATS
+// ══════════════════════════════════════════════════════════════════
+async function loadStats() {
+  try {
+    const s = await api('/api/stats');
+    animateNumber('stat-total', s.total_students);
+    animateNumber('stat-paid', s.paid_count);
+    animateNumber('stat-unpaid', s.unpaid_count + s.expired_count);
+    animateNumber('stat-inside', s.currently_inside);
+  } catch(e) { console.error('Stats error:', e); }
+}
+
+function animateNumber(id, target) {
+  const el = document.getElementById(id);
+  const current = parseInt(el.textContent) || 0;
+  if (current === target) return;
+  const diff = target - current;
+  const steps = Math.min(Math.abs(diff), 20);
+  const stepVal = diff / steps;
+  let step = 0;
+  const iv = setInterval(() => {
+    step++;
+    el.textContent = Math.round(current + stepVal * step);
+    if (step >= steps) { el.textContent = target; clearInterval(iv); }
+  }, 30);
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  STUDENTS
+// ══════════════════════════════════════════════════════════════════
+let studentsData = [];
+
+async function loadStudents() {
+  try {
+    const search = document.getElementById('student-search').value;
+    const filter = document.getElementById('student-filter').value;
+    let url = '/api/students?';
+    if (search) url += `search=${encodeURIComponent(search)}&`;
+    if (filter) url += `payment_status=${filter}&`;
+    studentsData = await api(url);
+    renderStudents();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function renderStudents() {
+  const tbody = document.getElementById('students-tbody');
+  const empty = document.getElementById('students-empty');
+  if (!studentsData.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  tbody.innerHTML = studentsData.map(s => `
+    <tr>
+      <td><strong>${esc(s.roll_no)}</strong></td>
+      <td>${esc(s.name)}</td>
+      <td>${esc(s.room_no)}</td>
+      <td>${esc(s.phone || '—')}</td>
+      <td><span class="badge badge-${s.payment_status}">${s.payment_status.toUpperCase()}</span></td>
+      <td>${formatDate(s.payment_valid_until)}</td>
+      <td><span class="badge ${s.access_enabled?'badge-access-on':'badge-access-off'}">${s.access_enabled?'✓ ON':'✕ OFF'}</span></td>
+      <td>
+        <button class="btn btn-sm btn-success" onclick="openPaymentModal('${esc(s.roll_no)}','${s.payment_status}','${s.payment_valid_from||''}','${s.payment_valid_until||''}')">💳</button>
+        <button class="btn btn-sm btn-ghost" onclick="openEditStudentModal('${esc(s.roll_no)}','${esc(s.name)}','${esc(s.room_no)}','${esc(s.phone||'')}')">✏️</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteStudent('${esc(s.roll_no)}')">🗑️</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function esc(s) { const d=document.createElement('div');d.textContent=s;return d.innerHTML; }
+
+// Debounced search
+let searchTimer;
+document.getElementById('student-search').addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(loadStudents, 300);
+});
+document.getElementById('student-filter').addEventListener('change', loadStudents);
+
+// Add student
+function openAddStudentModal() {
+  ['add-roll','add-name','add-room','add-phone'].forEach(id => document.getElementById(id).value='');
+  openModal('modal-add-student');
+}
+
+async function addStudent() {
+  const roll_no = document.getElementById('add-roll').value.trim();
+  const name = document.getElementById('add-name').value.trim();
+  const room_no = document.getElementById('add-room').value.trim();
+  const phone = document.getElementById('add-phone').value.trim() || null;
+  if (!roll_no || !name || !room_no) { toast('Fill required fields','error'); return; }
+  try {
+    await api('/api/students', {method:'POST', body:JSON.stringify({roll_no,name,room_no,phone})});
+    closeModal('modal-add-student');
+    toast('Student added successfully');
+    loadStudents(); loadStats();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// Edit student
+function openEditStudentModal(roll, name, room, phone) {
+  document.getElementById('edit-roll-original').value = roll;
+  document.getElementById('edit-name').value = name;
+  document.getElementById('edit-room').value = room;
+  document.getElementById('edit-phone').value = phone;
+  openModal('modal-edit-student');
+}
+
+async function saveEditStudent() {
+  const roll = document.getElementById('edit-roll-original').value;
+  const name = document.getElementById('edit-name').value.trim();
+  const room_no = document.getElementById('edit-room').value.trim();
+  const phone = document.getElementById('edit-phone').value.trim() || null;
+  if (!name || !room_no) { toast('Name and batch required','error'); return; }
+  try {
+    await api(`/api/students/${encodeURIComponent(roll)}`, {method:'PATCH', body:JSON.stringify({name,room_no,phone})});
+    closeModal('modal-edit-student');
+    toast('Student updated');
+    loadStudents();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// Payment
+function openPaymentModal(roll, status, from, until) {
+  document.getElementById('pay-roll').value = roll;
+  document.getElementById('pay-status').value = status;
+  document.getElementById('pay-from').value = from;
+  document.getElementById('pay-until').value = until;
+  openModal('modal-payment');
+}
+
+async function updatePayment() {
+  const roll = document.getElementById('pay-roll').value;
+  const payment_status = document.getElementById('pay-status').value;
+  const payment_valid_from = document.getElementById('pay-from').value || null;
+  const payment_valid_until = document.getElementById('pay-until').value || null;
+  try {
+    await api(`/api/students/${encodeURIComponent(roll)}/payment`, {
+      method:'PATCH',
+      body:JSON.stringify({payment_status,payment_valid_from,payment_valid_until}),
+    });
+    closeModal('modal-payment');
+    toast('Payment updated');
+    loadStudents(); loadStats();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// Delete
+async function deleteStudent(roll) {
+  if (!confirm(`Delete student ${roll}? This cannot be undone.`)) return;
+  try {
+    await api(`/api/students/${encodeURIComponent(roll)}`, {method:'DELETE'});
+    toast('Student deleted');
+    loadStudents(); loadStats();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  ACCESS LOGS
+// ══════════════════════════════════════════════════════════════════
+async function loadLogs() {
+  try {
+    const roll = document.getElementById('log-search').value.trim();
+    const ev = document.getElementById('log-event-filter').value;
+    const st = document.getElementById('log-status-filter').value;
+    let url = '/api/access/logs?limit=100&';
+    if (roll) url += `roll_no=${encodeURIComponent(roll)}&`;
+    if (ev) url += `event_type=${ev}&`;
+    if (st) url += `status=${st}&`;
+    const logs = await api(url);
+    renderLogs(logs);
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function renderLogs(logs) {
+  const tbody = document.getElementById('logs-tbody');
+  const empty = document.getElementById('logs-empty');
+  if (!logs.length) { tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  tbody.innerHTML = logs.map(l => `
+    <tr>
+      <td>${formatTime(l.timestamp)}</td>
+      <td><strong>${esc(l.roll_no)}</strong></td>
+      <td>${esc(l.student_name)}</td>
+      <td><span class="badge badge-${l.event_type}">${l.event_type==='entry'?'🚪 Entry':'🚶 Exit'}</span></td>
+      <td><span class="badge badge-${l.status}">${l.status.toUpperCase()}</span></td>
+      <td>${esc(l.notes||'—')}</td>
+    </tr>
+  `).join('');
+}
+
+document.getElementById('log-search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer=setTimeout(loadLogs,300); });
+document.getElementById('log-event-filter').addEventListener('change', loadLogs);
+document.getElementById('log-status-filter').addEventListener('change', loadLogs);
+
+// Log event
+function openLogEventModal() { 
+  document.getElementById('log-roll').value='';
+  document.getElementById('log-notes').value='';
+  document.getElementById('log-type').value='entry';
+  openModal('modal-log-event'); 
+}
+
+async function logEvent() {
+  const roll_no = document.getElementById('log-roll').value.trim();
+  const event_type = document.getElementById('log-type').value;
+  const notes = document.getElementById('log-notes').value.trim() || null;
+  if (!roll_no) { toast('Enter roll number','error'); return; }
+  try {
+    const result = await api('/api/access/log', {method:'POST', body:JSON.stringify({roll_no,event_type,notes})});
+    closeModal('modal-log-event');
+    if (result.status === 'denied') {
+      toast(`ACCESS DENIED — ${result.student_name} (${result.roll_no}) — payment not active`, 'error');
+    } else {
+      toast(`${event_type==='entry'?'Entry':'Exit'} logged for ${result.student_name}`);
+    }
+    loadLogs(); loadActive(); loadStats();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  ACTIVE NOW
+// ══════════════════════════════════════════════════════════════════
+async function loadActive() {
+  try {
+    const active = await api('/api/access/active');
+    const tbody = document.getElementById('active-tbody');
+    const empty = document.getElementById('active-empty');
+    if (!active.length) { tbody.innerHTML=''; empty.style.display='block'; return; }
+    empty.style.display='none';
+    tbody.innerHTML = active.map(a => `
+      <tr>
+        <td><strong>${esc(a.roll_no)}</strong></td>
+        <td>${esc(a.student_name)}</td>
+        <td>${formatTime(a.timestamp)}</td>
+      </tr>
+    `).join('');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  WEBSOCKET — live events
+// ══════════════════════════════════════════════════════════════════
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws = new WebSocket(`${proto}://${location.host}/api/access/live`);
+  ws.onmessage = (ev) => {
+    const data = JSON.parse(ev.data);
+    // Prepend to logs table if visible
+    const tbody = document.getElementById('logs-tbody');
+    const row = document.createElement('tr');
+    row.className = 'row-new';
+    row.innerHTML = `
+      <td>${formatTime(data.timestamp)}</td>
+      <td><strong>${esc(data.roll_no)}</strong></td>
+      <td>${esc(data.student_name)}</td>
+      <td><span class="badge badge-${data.event_type}">${data.event_type==='entry'?'🚪 Entry':'🚶 Exit'}</span></td>
+      <td><span class="badge badge-${data.status}">${data.status.toUpperCase()}</span></td>
+      <td>${esc(data.notes||'—')}</td>
+    `;
+    tbody.insertBefore(row, tbody.firstChild);
+    // Update stats
+    loadStats();
+    loadActive();
+    // Toast
+    const icon = data.status==='denied'?'⛔':'✅';
+    toast(`${icon} ${data.student_name} — ${data.event_type}`, data.status==='denied'?'error':'info');
+  };
+  ws.onclose = () => setTimeout(connectWS, 3000);
+  ws.onerror = () => ws.close();
+}
+
+// ── Init ─────────────────────────────────────────────────────────
+loadStats();
+loadStudents();
+connectWS();
+</script>
+</body>
+</html>
