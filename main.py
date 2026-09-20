@@ -281,6 +281,36 @@ def update_student(roll_no: str, payload: StudentUpdate, db: Session = Depends(g
     return student
 
 
+@app.get("/api/students/{roll_no}/face-status", tags=["Students"])
+def get_face_status(roll_no: str, db: Session = Depends(get_db)):
+    student = db.query(Student).filter(Student.roll_no == roll_no).first()
+    if not student:
+        raise HTTPException(404, "Student not found")
+        
+    person_data = zkbio_client.get_person(pin=roll_no)
+    if not person_data:
+        return {"roll_no": roll_no, "enrolled": False, "reason": "Not found in ZKBio or ZKBio disabled"}
+        
+    # Check if ZKBio indicates a face is registered.
+    # Often represented by "hasPhoto", "vislightPhoto", "hasFace", or template counts > 0.
+    # Note: ZKBio CVSecurity API typically returns 'vislightPhoto' or 'biometricTemplates'
+    has_face = False
+    
+    if person_data.get("code") == 0 and "data" in person_data:
+        person_details = person_data["data"]
+        
+        # Check standard fields for face template existence
+        has_vislight = bool(person_details.get("vislightPhoto") or person_details.get("vislightPhotoPath"))
+        
+        # Or check if face templates are listed (Biometric Templates: 9 is vislight face)
+        templates = person_details.get("biometricTemplates", [])
+        has_face_template = any(t.get("bioType") == 9 for t in templates) if isinstance(templates, list) else False
+        
+        has_face = has_vislight or has_face_template
+    
+    return {"roll_no": roll_no, "enrolled": has_face, "zkbio_raw": person_data.get("data") if person_data.get("code") == 0 else None}
+
+
 @app.delete("/api/students/{roll_no}", status_code=204, tags=["Students"])
 def delete_student(roll_no: str, db: Session = Depends(get_db)):
     student = db.query(Student).filter(Student.roll_no == roll_no).first()
