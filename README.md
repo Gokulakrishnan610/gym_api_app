@@ -124,10 +124,14 @@ ZKBIO_POLL_INTERVAL=5                # Seconds between transaction polls
 
 # Entry/Exit Detection Mode
 ZKBIO_ENTRY_EXIT_MODE=two_readers    # "two_readers" or "single_reader"
-ZKBIO_ENTRY_READER=0                 # Reader index for entry (two_readers mode)
-ZKBIO_EXIT_READER=1                  # Reader index for exit (two_readers mode)
-ZKBIO_ENTRY_DOOR_ID=1                # Door ID for entry (single_reader mode)
-ZKBIO_EXIT_DOOR_ID=2                 # Door ID for exit (single_reader mode)
+
+# For two_readers mode (comma-separated if you have multiple lanes/devices)
+ZKBIO_ENTRY_READER=0,2               # Reader indexes for entry
+ZKBIO_EXIT_READER=1,3                # Reader indexes for exit
+
+# For single_reader mode (comma-separated if you have multiple doors)
+ZKBIO_ENTRY_DOOR_ID=1,3              # Door IDs for entry
+ZKBIO_EXIT_DOOR_ID=2,4               # Door IDs for exit
 ```
 
 > **Note:** When `ZKBIO_ENABLED=false`, all ZKBio device calls are silently skipped (no-op). This allows full local development and testing without a physical device connected.

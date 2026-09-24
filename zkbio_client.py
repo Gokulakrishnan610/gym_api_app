@@ -23,10 +23,11 @@ ZKBIO_LEVEL_IDS = os.getenv("ZKBIO_LEVEL_IDS", "1")
 ZKBIO_DEPT_CODE = os.getenv("ZKBIO_DEPT_CODE", "1")
 ZKBIO_POLL_INTERVAL = int(os.getenv("ZKBIO_POLL_INTERVAL", "5"))
 ZKBIO_ENTRY_EXIT_MODE = os.getenv("ZKBIO_ENTRY_EXIT_MODE", "two_readers")
-ZKBIO_ENTRY_READER = int(os.getenv("ZKBIO_ENTRY_READER", "0"))
-ZKBIO_EXIT_READER = int(os.getenv("ZKBIO_EXIT_READER", "1"))
-ZKBIO_ENTRY_DOOR_ID = os.getenv("ZKBIO_ENTRY_DOOR_ID", "1")
-ZKBIO_EXIT_DOOR_ID = os.getenv("ZKBIO_EXIT_DOOR_ID", "2")
+# Parse comma-separated strings into lists (e.g., "0,2" -> [0, 2])
+ZKBIO_ENTRY_READERS = [int(r.strip()) for r in os.getenv("ZKBIO_ENTRY_READER", "0").split(",") if r.strip()]
+ZKBIO_EXIT_READERS = [int(r.strip()) for r in os.getenv("ZKBIO_EXIT_READER", "1").split(",") if r.strip()]
+ZKBIO_ENTRY_DOOR_IDS = [d.strip() for d in os.getenv("ZKBIO_ENTRY_DOOR_ID", "1").split(",") if d.strip()]
+ZKBIO_EXIT_DOOR_IDS = [d.strip() for d in os.getenv("ZKBIO_EXIT_DOOR_ID", "2").split(",") if d.strip()]
 
 TIMEOUT = 10.0  # seconds
 
@@ -201,7 +202,15 @@ def get_transactions(
         )
         data = resp.json()
         if data.get("code") == 0:
-            return data.get("data", [])
+            payload = data.get("data", [])
+            # Handle paginated wrapper objects
+            if isinstance(payload, dict):
+                # The actual list is usually inside 'data' or 'list'
+                payload = payload.get("data", payload.get("list", []))
+            
+            if isinstance(payload, list):
+                return payload
+            
         logger.warning(f"get_transactions unexpected response: {data}")
         return []
     except Exception as e:
@@ -299,11 +308,11 @@ def determine_event_type(transaction: dict) -> str:
             reader_int = int(reader)
         except (TypeError, ValueError):
             reader_int = 0
-        return "entry" if reader_int == ZKBIO_ENTRY_READER else "exit"
+        return "entry" if reader_int in ZKBIO_ENTRY_READERS else "exit"
 
     elif ZKBIO_ENTRY_EXIT_MODE == "two_doors":
         door_id = str(transaction.get("doorId", transaction.get("door_id", "")))
-        return "entry" if door_id == ZKBIO_ENTRY_DOOR_ID else "exit"
+        return "entry" if door_id in ZKBIO_ENTRY_DOOR_IDS else "exit"
 
     else:
         # toggle or unknown — default to entry
