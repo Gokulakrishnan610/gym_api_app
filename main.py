@@ -254,7 +254,7 @@ def create_student(payload: StudentCreate, db: Session = Depends(get_db)):
 
     # ── Sync to ZKBio device ──
     # Register person on device (no access level yet — unpaid by default)
-    zkbio_client.add_person(pin=student.roll_no, name=student.name)
+    zkbio_client.add_person(pin=student.roll_no, name=student.name, dept_code=payload.dept_code)
 
     return student
 

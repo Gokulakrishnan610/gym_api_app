@@ -13,6 +13,7 @@ class StudentCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
     room_no: str = Field(..., min_length=1, max_length=20)
     phone: Optional[str] = Field(None, max_length=15)
+    dept_code: Optional[str] = Field(None, max_length=10)
 
 
 class StudentUpdate(BaseModel):
